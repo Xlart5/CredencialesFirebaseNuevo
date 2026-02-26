@@ -47,6 +47,7 @@ class DefaultFirebaseOptions {
     projectId: 'credenciales-f2be2',
     authDomain: 'credenciales-f2be2.firebaseapp.com',
     storageBucket: 'credenciales-f2be2.firebasestorage.app',
+    databaseURL: 'https://credenciales-f2be2-default-rtdb.firebaseio.com/',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -63,7 +64,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '651690558061',
     projectId: 'credenciales-f2be2',
     storageBucket: 'credenciales-f2be2.firebasestorage.app',
-    iosClientId: '651690558061-blhq5c86uis3iq5p5m05g5gr4k93lvj8.apps.googleusercontent.com',
+    iosClientId:
+        '651690558061-blhq5c86uis3iq5p5m05g5gr4k93lvj8.apps.googleusercontent.com',
     iosBundleId: 'com.example.carnetizacion',
   );
 
@@ -73,7 +75,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '651690558061',
     projectId: 'credenciales-f2be2',
     storageBucket: 'credenciales-f2be2.firebasestorage.app',
-    iosClientId: '651690558061-blhq5c86uis3iq5p5m05g5gr4k93lvj8.apps.googleusercontent.com',
+    iosClientId:
+        '651690558061-blhq5c86uis3iq5p5m05g5gr4k93lvj8.apps.googleusercontent.com',
     iosBundleId: 'com.example.carnetizacion',
   );
 
@@ -85,5 +88,4 @@ class DefaultFirebaseOptions {
     authDomain: 'credenciales-f2be2.firebaseapp.com',
     storageBucket: 'credenciales-f2be2.firebasestorage.app',
   );
-
 }

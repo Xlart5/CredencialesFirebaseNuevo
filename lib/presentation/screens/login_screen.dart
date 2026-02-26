@@ -91,7 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               width: 80,
                               height: 80,
                               child: Image.network(
-                                "assets/images/logo_ted.png",
+                                "https://i.imgur.com/s9ukc28.png",
                               ),
                             ),
                           ),

@@ -1,4 +1,5 @@
 import 'package:carnetizacion/presentation/screens/computo_screen.dart';
+import 'package:carnetizacion/presentation/screens/generar_qrs_screen.dart';
 import 'package:carnetizacion/presentation/screens/login_screen.dart';
 import 'package:carnetizacion/presentation/screens/monitor_screen.dart';
 import 'package:carnetizacion/presentation/screens/reports_screen.dart';
@@ -71,6 +72,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/acceso',
       builder: (context, state) => const MonitorScreen(),
+    ),
+    GoRoute(
+      path: '/externos',
+      builder: (context, state) => const GenerarQrsScreen(),
     ),
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(

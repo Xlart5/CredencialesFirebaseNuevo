@@ -105,8 +105,11 @@ class RegisterProvider extends ChangeNotifier {
       }).toList();
 
       // 2. Traemos los cargos activos de Firebase
+      // ANTES: final cargosSnapshot = await _db.collection('cargos')...
+
+      // AHORA: Usamos collectionGroup
       final cargosSnapshot = await _db
-          .collection('cargos')
+          .collectionGroup('cargos')
           .where('activo', isEqualTo: true)
           .get();
       availableCargos = cargosSnapshot.docs.map((doc) {

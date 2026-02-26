@@ -150,11 +150,15 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
   }
 
   // --- WIDGET: TARJETA DE UNIDAD ---
+  // --- WIDGET: TARJETA DE UNIDAD ---
   Widget _buildUnidadCard(
     BuildContext context,
     UnidadModel unidad,
     UnidadesProvider provider,
   ) {
+    // AQUÍ LA MAGIA: Calculamos cuántos cargos tiene esta unidad en tiempo real
+    final int cantidadCargos = provider.getCargosPorUnidad(unidad.id).length;
+
     return Container(
       width: 300,
       height: 180,
@@ -220,7 +224,8 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
               const Icon(Icons.people, size: 14, color: Colors.grey),
               const SizedBox(width: 5),
               Text(
-                "${unidad.totalCargosProceso} Elementos asignados",
+                // AQUÍ LO MOSTRAMOS: Imprimimos la variable calculada
+                "$cantidadCargos Elementos asignados",
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ],
@@ -230,7 +235,10 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    // AQUÍ LLAMAMOS A LA FUNCIÓN QUE CREAMOS
+                    _mostrarDialogoEditarUnidad(context, unidad, provider);
+                  },
                   child: const Text(
                     "Editar",
                     style: TextStyle(color: Colors.grey, fontSize: 12),
@@ -253,6 +261,118 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // FUNCIÓN PARA EDITAR UNIDAD
+  // ==========================================================
+  void _mostrarDialogoEditarUnidad(
+    BuildContext context,
+    UnidadModel unidad,
+    UnidadesProvider provider,
+  ) {
+    // Cargamos los datos actuales en las cajas de texto
+    final TextEditingController nombreCtrl = TextEditingController(
+      text: unidad.nombre,
+    );
+    final TextEditingController abrevCtrl = TextEditingController(
+      text: unidad.abreviatura,
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          "Editar Unidad",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Campo Nombre
+              const Text(
+                "Nombre de la Unidad:",
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: nombreCtrl,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              // Campo Abreviatura
+              const Text(
+                "Abreviatura (Sigla):",
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: abrevCtrl,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+            onPressed: () async {
+              final nuevoNombre = nombreCtrl.text.trim();
+              final nuevaAbrev = abrevCtrl.text.trim();
+
+              if (nuevoNombre.isEmpty || nuevaAbrev.isEmpty) return;
+
+              Navigator.pop(ctx); // Cerramos el cuadro de diálogo
+
+              // Llamamos a tu Provider para guardar en Firebase
+              bool success = await provider.updateUnidad(
+                unidad.id,
+                nuevoNombre,
+                nuevaAbrev,
+              );
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? "Unidad actualizada con éxito"
+                          : "Error al actualizar",
+                    ),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              "Guardar Cambios",
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),

@@ -221,6 +221,7 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
+
                         color: Colors.grey,
                         letterSpacing: 1.2,
                       ),
@@ -398,16 +399,46 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                                         ),
                                       ),
                                       // Acciones (Menú de tres puntos)
+                                      // Acciones (Editar y Eliminar)
                                       Expanded(
                                         flex: 1,
                                         child: Align(
                                           alignment: Alignment.centerRight,
-                                          child: IconButton(
-                                            onPressed: () {},
-                                            icon: Icon(
-                                              Icons.more_horiz,
-                                              color: Colors.grey.shade400,
-                                            ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize
+                                                .min, // Evita que la Row ocupe todo el espacio
+                                            children: [
+                                              // --- BOTÓN EDITAR ---
+                                              IconButton(
+                                                onPressed: () {
+                                                  _mostrarDialogoEditar(
+                                                    context,
+                                                    cargo,
+                                                    provider, // Le pasamos el provider que ya tienes arriba
+                                                    widget.unidad.id,
+                                                  );
+                                                },
+                                                icon: const Icon(
+                                                  Icons.edit,
+                                                  color: Colors.blueAccent,
+                                                ),
+                                              ),
+                                              // --- BOTÓN ELIMINAR ---
+                                              IconButton(
+                                                onPressed: () {
+                                                  _mostrarDialogoEliminar(
+                                                    context,
+                                                    cargo,
+                                                    provider,
+                                                    widget.unidad.id,
+                                                  );
+                                                },
+                                                icon: const Icon(
+                                                  Icons.delete,
+                                                  color: Colors.redAccent,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),
@@ -423,6 +454,144 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // FUNCIÓN PARA ELIMINAR CARGO
+  // ==========================================================
+  void _mostrarDialogoEliminar(
+    BuildContext context,
+    CargoUnidadModel cargo,
+    UnidadesProvider provider,
+    int unidadId,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Eliminar Cargo"),
+        content: Text(
+          "¿Estás seguro de eliminar el cargo '${cargo.nombre}'? Esta acción no se puede deshacer.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              Navigator.pop(ctx); // Cierra el diálogo primero
+
+              // Llama a la base de datos
+              bool success = await provider.deleteCargo(cargo.id, unidadId);
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? "Cargo eliminado con éxito"
+                          : "Error al eliminar",
+                    ),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              "Eliminar",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // FUNCIÓN PARA EDITAR CARGO
+  // ==========================================================
+  void _mostrarDialogoEditar(
+    BuildContext context,
+    CargoUnidadModel cargo,
+    UnidadesProvider provider,
+    int unidadId,
+  ) {
+    // Creamos un controlador con el texto actual del cargo
+    final TextEditingController editCtrl = TextEditingController(
+      text: cargo.nombre,
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          "Editar Cargo",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Nombre del Cargo:",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: editCtrl,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+            onPressed: () async {
+              final nuevoNombre = editCtrl.text.trim();
+              if (nuevoNombre.isEmpty) return;
+
+              Navigator.pop(ctx); // Cierra el diálogo
+
+              // Llama a la base de datos
+              bool success = await provider.updateCargo(
+                cargo.id,
+                unidadId,
+                nuevoNombre,
+              );
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? "Cargo actualizado con éxito"
+                          : "Error al actualizar",
+                    ),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              "Guardar Cambios",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -90,6 +90,15 @@ class SideMenu extends StatelessWidget {
                 ),
                 _DrawerItem(
                   icon: Icons.print_outlined,
+                  text: "Impresión de Externos",
+                  isActive: location == '/externos',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/externos');
+                  },
+                ),
+                _DrawerItem(
+                  icon: Icons.access_time_rounded,
                   text: "Acceso",
                   isActive: location == '/acceso',
                   onTap: () {

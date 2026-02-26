@@ -24,21 +24,22 @@ class UnidadesProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    // Escuchamos la colección de Unidades
+    // 1. Escuchamos las Unidades
     _db.collection('unidades').snapshots().listen((snapshotUnidades) {
       _unidades = snapshotUnidades.docs
           .map((doc) => UnidadModel.fromJson(doc.data()))
           .toList();
+      notifyListeners();
+    });
 
-      // Escuchamos la colección de Cargos
-      _db.collection('cargos').snapshots().listen((snapshotCargos) {
-        _todosLosCargos = snapshotCargos.docs
-            .map((doc) => CargoUnidadModel.fromJson(doc.data()))
-            .toList();
-
-        _isLoading = false;
-        notifyListeners();
-      });
+    // 2. Escuchamos TODOS los cargos que estén dentro de cualquier unidad
+    // Usamos collectionGroup para buscar la subcolección 'cargos' en toda la BD
+    _db.collectionGroup('cargos').snapshots().listen((snapshotCargos) {
+      _todosLosCargos = snapshotCargos.docs
+          .map((doc) => CargoUnidadModel.fromJson(doc.data()))
+          .toList();
+      _isLoading = false;
+      notifyListeners();
     });
   }
 
@@ -65,13 +66,20 @@ class UnidadesProvider extends ChangeNotifier {
   Future<bool> addCargo(String nombre, int unidadId, String tipo) async {
     try {
       int newId = DateTime.now().millisecondsSinceEpoch;
-      await _db.collection('cargos').doc(newId.toString()).set({
-        'id': newId,
-        'nombre': nombre.toUpperCase(),
-        'unidadId': unidadId,
-        'activo': true,
-        'tipo': tipo,
-      });
+
+      // RUTA ANIDADA: unidades -> ID_UNIDAD -> cargos -> ID_CARGO
+      await _db
+          .collection('unidades')
+          .doc(unidadId.toString())
+          .collection('cargos') // <--- SUBCOLECCIÓN
+          .doc(newId.toString())
+          .set({
+            'id': newId,
+            'nombre': nombre.toUpperCase(),
+            'unidadId': unidadId,
+            'activo': true,
+            'tipo': tipo,
+          });
       return true;
     } catch (e) {
       print("Error al crear cargo: $e");
@@ -99,14 +107,30 @@ class UnidadesProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateCargo(int id, String nuevoNombre) async {
+  Future<bool> updateCargo(int id, int unidadId, String nuevoNombre) async {
     try {
-      await _db.collection('cargos').doc(id.toString()).update({
-        'nombre': nuevoNombre.toUpperCase(),
-      });
+      await _db
+          .collection('unidades')
+          .doc(unidadId.toString())
+          .collection('cargos')
+          .doc(id.toString())
+          .update({'nombre': nuevoNombre.toUpperCase()});
       return true;
     } catch (e) {
-      print("Error al actualizar cargo: $e");
+      return false;
+    }
+  }
+
+  Future<bool> deleteCargo(int id, int unidadId) async {
+    try {
+      await _db
+          .collection('unidades')
+          .doc(unidadId.toString())
+          .collection('cargos')
+          .doc(id.toString())
+          .delete();
+      return true;
+    } catch (e) {
       return false;
     }
   }
@@ -133,16 +157,6 @@ class UnidadesProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       print("Error al eliminar unidad: $e");
-      return false;
-    }
-  }
-
-  Future<bool> deleteCargo(int id) async {
-    try {
-      await _db.collection('cargos').doc(id.toString()).delete();
-      return true;
-    } catch (e) {
-      print("Error al eliminar cargo: $e");
       return false;
     }
   }

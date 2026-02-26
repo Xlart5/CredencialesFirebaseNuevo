@@ -1,7 +1,7 @@
 import 'dart:convert';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 class MonitorScreen extends StatefulWidget {
@@ -12,75 +12,88 @@ class MonitorScreen extends StatefulWidget {
 }
 
 class _MonitorScreenState extends State<MonitorScreen> {
-  // Como la web corre en la misma PC que el servidor Dart, usamos localhost
-  final _canal = WebSocketChannel.connect(Uri.parse('ws://10.95.70.221:8080'));
   final FlutterTts _flutterTts = FlutterTts();
+  late DatabaseReference _dbRef;
 
-  Map<String, dynamic>? _persona;
-  bool _esperando = true; // Pantalla de espera inicial
+  Map<String, dynamic> _persona = {};
+  bool _esperando = true;
+  int _ultimoTimestamp = 0;
 
   @override
   void initState() {
     super.initState();
+
+    _dbRef = FirebaseDatabase.instanceFor(
+      app: Firebase.app(),
+      databaseURL: 'https://credenciales-f2be2-default-rtdb.firebaseio.com',
+    ).ref('ultimo escaneo');
+
     _configurarVoz();
-    _escucharTunel();
+    _escucharFirebase();
   }
 
   void _configurarVoz() async {
     await _flutterTts.setLanguage("es-ES");
   }
 
-  // Cambiamos la variable del canal por la referencia a Firebase
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref(
-    'ultimo_escaneo',
-  );
-  int _ultimoTimestampProcesado =
-      0; // Para no repetir el audio de escaneos viejos al recargar la página
-
-  void _escucharTunel() {
-    // Escuchamos CUALQUIER cambio en "ultimo_escaneo" en tiempo real
+  void _escucharFirebase() {
     _dbRef.onValue.listen((DatabaseEvent event) {
-      if (event.snapshot.value != null) {
-        // Convertimos el dato que llegó a un Map
-        final data = Map<String, dynamic>.from(event.snapshot.value as Map);
+      if (event.snapshot.value == null) return;
 
-        // Verificamos que sea un escaneo NUEVO usando el timestamp
-        final int timestampNuevo = data['timestamp'] ?? 0;
-        if (timestampNuevo > _ultimoTimestampProcesado) {
-          _ultimoTimestampProcesado = timestampNuevo;
+      try {
+        final cleanJson = jsonEncode(event.snapshot.value);
+        final Map<String, dynamic> data = jsonDecode(cleanJson);
 
-          setState(() {
-            _persona = data;
-            _esperando = false;
-          });
+        final int timestampLlegado = (data['timestamp'] is num)
+            ? (data['timestamp'] as num).toInt()
+            : 0;
 
-          _hablar(data); // Hace sonar el nombre o el error
+        if (timestampLlegado == _ultimoTimestamp) return;
+        _ultimoTimestamp = timestampLlegado;
 
-          // Volver a la pantalla de "Esperando..." después de 8 segundos
-          Future.delayed(const Duration(seconds: 8), () {
-            if (mounted) setState(() => _esperando = true);
-          });
-        }
+        setState(() {
+          _persona = data;
+          _esperando = false;
+        });
+
+        _hablar(data);
+
+        Future.delayed(const Duration(seconds: 6), () {
+          if (mounted) setState(() => _esperando = true);
+        });
+      } catch (e) {
+        print("🚨 ERROR: $e");
       }
     });
   }
 
   void _hablar(Map<String, dynamic> data) async {
     final bool acceso = data['accesoComputo'] == true;
+    final String nombre = data['nombre']?.toString() ?? '';
+    final String apellido = data['apellidoPaterno']?.toString() ?? '';
+    final String error = data['error']?.toString() ?? 'No registrado';
+
+    // 🔥 MAGIA AQUÍ: Detectamos si es entrada o salida
+    final String tipoRegistro =
+        data['tipoRegistro']?.toString().toLowerCase() ?? 'entrada';
+
     if (acceso) {
-      await _flutterTts.speak(
-        "Acceso permitido. Bienvenido, ${data['nombre']} ${data['apellidoPaterno']}",
-      );
+      if (tipoRegistro == 'salida') {
+        await _flutterTts.speak(
+          "Registro de salida exitoso. Hasta pronto, $nombre $apellido",
+        );
+      } else {
+        await _flutterTts.speak(
+          "Acceso permitido. Bienvenido, $nombre $apellido",
+        );
+      }
     } else {
-      await _flutterTts.speak(
-        "Acceso denegado. ${data['error'] ?? 'No registrado'}",
-      );
+      await _flutterTts.speak("Acceso denegado. $error");
     }
   }
 
   @override
   void dispose() {
-    _canal.sink.close();
     super.dispose();
   }
 
@@ -92,10 +105,10 @@ class _MonitorScreenState extends State<MonitorScreen> {
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.qr_code_scanner, color: Colors.amber, size: 100),
-              SizedBox(height: 20),
-              Text(
+            children: [
+              const Icon(Icons.qr_code_scanner, color: Colors.amber, size: 100),
+              const SizedBox(height: 20),
+              const Text(
                 "MONITOR DE ACCESO ACTIVO",
                 style: TextStyle(
                   color: Colors.white,
@@ -103,10 +116,22 @@ class _MonitorScreenState extends State<MonitorScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              SizedBox(height: 10),
-              Text(
-                "Esperando que el guardia escanee un QR...",
+              const SizedBox(height: 10),
+              const Text(
+                "Esperando escaneo en puerta...",
                 style: TextStyle(color: Colors.white54, fontSize: 18),
+              ),
+              const SizedBox(height: 40),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.circle, color: Colors.greenAccent, size: 12),
+                  SizedBox(width: 8),
+                  Text(
+                    "Conectado a Firebase RTDB",
+                    style: TextStyle(color: Colors.greenAccent),
+                  ),
+                ],
               ),
             ],
           ),
@@ -114,13 +139,27 @@ class _MonitorScreenState extends State<MonitorScreen> {
       );
     }
 
-    // --- EL DISEÑO HERMOSO ---
     final size = MediaQuery.of(context).size;
-    final bool acceso = _persona!['accesoComputo'] == true;
+    final bool acceso = _persona['accesoComputo'] == true;
 
-    final Color bgColor = acceso ? const Color(0xFFFFD54F) : Colors.redAccent;
-    final IconData mainIcon = acceso ? Icons.verified_user : Icons.cancel;
-    final String title = acceso ? "ACCESO\nPERMITIDO" : "ACCESO\nDENEGADO";
+    // 🔥 Cambiamos el color según si es entrada (Amarillo) o salida (Azul claro)
+    final String tipoRegistro =
+        _persona['tipoRegistro']?.toString().toLowerCase() ?? 'entrada';
+    final Color bgColor = acceso
+        ? (tipoRegistro == 'salida'
+              ? const Color(0xFF64B5F6)
+              : const Color(0xFFFFD54F))
+        : Colors.redAccent;
+
+    final IconData mainIcon = acceso
+        ? (tipoRegistro == 'salida' ? Icons.exit_to_app : Icons.verified_user)
+        : Icons.cancel;
+
+    final String title = acceso
+        ? (tipoRegistro == 'salida'
+              ? "REGISTRO DE\nSALIDA"
+              : "ACCESO\nPERMITIDO")
+        : "ACCESO\nDENEGADO";
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -145,7 +184,6 @@ class _MonitorScreenState extends State<MonitorScreen> {
               ),
             ),
             SizedBox(height: size.height * 0.05),
-
             Expanded(
               child: Container(
                 width: double.infinity,
@@ -159,8 +197,10 @@ class _MonitorScreenState extends State<MonitorScreen> {
                 ),
                 child: SingleChildScrollView(
                   child: acceso
-                      ? _buildPersonaInfo(_persona!, size)
-                      : _buildErrorMessage(_persona!['error'] ?? 'Sin acceso'),
+                      ? _buildPersonaInfo(_persona, size, tipoRegistro)
+                      : _buildErrorMessage(
+                          _persona['error']?.toString() ?? 'Sin acceso',
+                        ),
                 ),
               ),
             ),
@@ -170,13 +210,32 @@ class _MonitorScreenState extends State<MonitorScreen> {
     );
   }
 
-  Widget _buildPersonaInfo(Map<String, dynamic> persona, Size size) {
-    final String photoUrl =
-        (persona['imagen'] != null && persona['imagen'].toString().isNotEmpty)
-        ? persona['imagen']
-        : 'https://ui-avatars.com/api/?name=${persona['nombre']}+${persona['apellidoPaterno']}&background=random&color=fff';
-    final hora =
+  Widget _buildPersonaInfo(
+    Map<String, dynamic> persona,
+    Size size,
+    String tipoRegistro,
+  ) {
+    final String nombreStr = persona['nombre']?.toString() ?? '';
+    final String apellidoStr = persona['apellidoPaterno']?.toString() ?? '';
+    final String nombreCompleto = "$nombreStr $apellidoStr".trim();
+    final String imagenStr = persona['imagen']?.toString() ?? '';
+    final String photoUrl = imagenStr.isNotEmpty
+        ? imagenStr
+        : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(nombreCompleto.isEmpty ? 'Externo' : nombreCompleto)}&background=random&color=fff';
+    final String carnetStr =
+        persona['carnetIdentidad']?.toString() ??
+        persona['qr']?.toString() ??
+        'S/N';
+    final String hora =
         "${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}";
+
+    // 🔥 Texto dinámico para el ingreso o la salida
+    final String textoHora = tipoRegistro == 'salida'
+        ? "HORA DE SALIDA:"
+        : "HORA DE INGRESO:";
+    final Color colorHora = tipoRegistro == 'salida'
+        ? Colors.blueAccent
+        : Colors.green;
 
     return Column(
       children: [
@@ -186,11 +245,12 @@ class _MonitorScreenState extends State<MonitorScreen> {
         ),
         SizedBox(height: size.height * 0.03),
         const Text(
-          "NOMBRE COMPLETO",
+          "NOMBRE REGISTRADO",
           style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
         ),
         Text(
-          "${persona['nombre']} ${persona['apellidoPaterno']}",
+          nombreCompleto.isEmpty ? "Personal Acreditado" : nombreCompleto,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 30,
             fontWeight: FontWeight.w900,
@@ -199,11 +259,11 @@ class _MonitorScreenState extends State<MonitorScreen> {
         ),
         SizedBox(height: size.height * 0.02),
         const Text(
-          "CARNET DE IDENTIDAD",
+          "IDENTIFICACIÓN",
           style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
         ),
         Text(
-          "${persona['carnetIdentidad']}",
+          carnetStr,
           style: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -215,11 +275,11 @@ class _MonitorScreenState extends State<MonitorScreen> {
           child: Divider(),
         ),
         Text(
-          "HORA DE INGRESO: $hora",
-          style: const TextStyle(
+          "$textoHora $hora",
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.green,
+            color: colorHora,
           ),
         ),
       ],
