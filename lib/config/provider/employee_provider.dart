@@ -17,6 +17,7 @@ class EmployeeProvider extends ChangeNotifier {
   // Sets para guardar los valores únicos
   final Set<String> _unidadesDisponibles = {};
   final Set<String> _estadosDisponibles = {};
+  final Set<String> _cargosDisponibles = {};
 
   // =====================================
   // SELECCIÓN MÚLTIPLE PARA IMPRESIÓN
@@ -35,6 +36,7 @@ class EmployeeProvider extends ChangeNotifier {
   Set<String> get estadosDisponibles => _estadosDisponibles;
   String? get selectedUnidadFilter => _selectedUnidadFilter;
   String? get selectedEstadoFilter => _selectedEstadoFilter;
+  Set<String> get cargosDisponibles => _cargosDisponibles;
 
   // KPIs
   int get totalEmployees => _allEmployees.length;
@@ -52,7 +54,6 @@ class EmployeeProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    // Esto crea un túnel constante con Firestore. Si alguien añade un empleado, se actualiza solo.
     _db
         .collection('personal')
         .snapshots()
@@ -77,10 +78,14 @@ class EmployeeProvider extends ChangeNotifier {
   void _actualizarListasSecundarias() {
     _unidadesDisponibles.clear();
     _estadosDisponibles.clear();
+    _cargosDisponibles.clear(); // 🔥 Limpiamos antes de llenar
+
     for (var emp in _allEmployees) {
       if (emp.unidad.isNotEmpty) _unidadesDisponibles.add(emp.unidad);
       if (emp.estadoActual.isNotEmpty)
         _estadosDisponibles.add(emp.estadoActual);
+      if (emp.cargo.isNotEmpty)
+        _cargosDisponibles.add(emp.cargo); // 🔥 Extraemos el cargo
     }
     _applyFilters();
   }
@@ -156,10 +161,85 @@ class EmployeeProvider extends ChangeNotifier {
       await _db.collection('personal').doc(emp.ci).update({
         'estadoActual': 'CREDENCIAL IMPRESO',
       });
-      // No necesitamos actualizar la lista manualmente, el 'snapshot().listen' lo hará solo
       return true;
     } catch (e) {
       print('Error al actualizar Firebase: $e');
+      return false;
+    }
+  }
+
+  // =====================================
+  // 🔥 NUEVO: FINALIZAR CONTRATOS EN MASA (CERTIFICADOS)
+  // =====================================
+  Future<bool> terminarContratosMasivo(List<Employee> empleados) async {
+    try {
+      WriteBatch batch = _db.batch(); // Agrupa todas las operaciones en 1 sola
+
+      for (var emp in empleados) {
+        DocumentReference docRef = _db.collection('personal').doc(emp.ci);
+        batch.update(docRef, {'estadoActual': 'CONTRATO TERMINADO'});
+      }
+
+      await batch.commit(); // Ejecutamos el guardado masivo
+      return true;
+    } catch (e) {
+      print('Error en batch de contratos: $e');
+      return false;
+    }
+  }
+
+  // =====================================
+  // 🔥 PASAR A "PERSONA ACTIVA" MASIVO
+  // =====================================
+  Future<bool> marcarComoActivoMasivo(List<Employee> empleados) async {
+    try {
+      WriteBatch batch = _db.batch();
+      for (var emp in empleados) {
+        DocumentReference docRef = _db.collection('personal').doc(emp.ci);
+        batch.update(docRef, {'estadoActual': 'PERSONA ACTIVA'});
+      }
+      await batch.commit();
+      return true;
+    } catch (e) {
+      print('Error en batch de activar personal: $e');
+      return false;
+    }
+  }
+
+  // =====================================
+  // 🔥 PASAR A "CREDENCIAL DEVUELTO" MASIVO
+  // =====================================
+  Future<bool> marcarCredencialDevueltoMasivo(List<Employee> empleados) async {
+    try {
+      WriteBatch batch = _db.batch();
+      for (var emp in empleados) {
+        DocumentReference docRef = _db.collection('personal').doc(emp.ci);
+        batch.update(docRef, {'estadoActual': 'CREDENCIAL DEVUELTO'});
+      }
+      await batch.commit();
+      return true;
+    } catch (e) {
+      print('Error en batch de devolver credencial: $e');
+      return false;
+    }
+  }
+
+  // =====================================
+  // 🔥 PASAR A "CONTRATO FINALIZADO" MASIVO
+  // =====================================
+  Future<bool> marcarContratoFinalizadoMasivo(List<Employee> empleados) async {
+    try {
+      WriteBatch batch = _db.batch();
+      for (var emp in empleados) {
+        DocumentReference docRef = _db.collection('personal').doc(emp.ci);
+        batch.update(docRef, {
+          'estadoActual': 'CONTRATO FINALIZADO', // Nuevo estado
+        });
+      }
+      await batch.commit();
+      return true;
+    } catch (e) {
+      print('Error en batch de finalizar contrato: $e');
       return false;
     }
   }
@@ -191,26 +271,19 @@ class EmployeeProvider extends ChangeNotifier {
   List<dynamic> get reportData => _reportData;
   int get reportTotal => _reportData.length;
 
-  // =====================================
-  // BUSCAR POR CIRCUNSCRIPCIÓN (FIREBASE)
-  // =====================================
   Future<void> fetchReportePorCircunscripcion(String cir) async {
     _isLoading = true;
     _reportData = [];
     notifyListeners();
 
     try {
-      // Usamos Firestore para buscar directamente a los de esa circunscripción
       final snapshot = await _db
           .collection('personal')
-          // ATENCIÓN: Asegúrate de que este sea el nombre exacto del campo en Firestore
           .where('nroCircunscripcion', isEqualTo: cir)
           .get();
 
-      // Mapeamos los resultados para que tu ReportsScreen los lea como si fuera el JSON antiguo
       _reportData = snapshot.docs.map((doc) {
         final data = doc.data();
-        // Inyectamos el Carnet de Identidad por si tu reporte lo necesita
         data['carnetIdentidad'] = data['ci'] ?? doc.id;
         return data;
       }).toList();
@@ -225,5 +298,19 @@ class EmployeeProvider extends ChangeNotifier {
   void limpiarReporte() {
     _reportData = [];
     notifyListeners();
+  }
+
+  Future<bool> updateEmployee(
+    String documentId,
+    Map<String, dynamic> newData,
+  ) async {
+    try {
+      // documentId generalmente es el CI de la persona
+      await _db.collection('personal').doc(documentId).update(newData);
+      return true;
+    } catch (e) {
+      print('Error al actualizar empleado: $e');
+      return false;
+    }
   }
 }

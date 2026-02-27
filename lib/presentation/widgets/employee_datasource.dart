@@ -3,6 +3,7 @@ import 'package:carnetizacion/config/helpers/pdf_generator_service.dart';
 import 'package:carnetizacion/config/provider/employee_provider.dart';
 import 'package:carnetizacion/presentation/widgets/edit_employee_sheet.dart';
 import 'package:carnetizacion/presentation/widgets/view_employee_sheet.dart';
+
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
@@ -158,7 +159,8 @@ class EmployeeDataSource extends DataTableSource {
                 icon: Icons.visibility_outlined,
                 color: Colors.grey,
                 onTap: () {
-                  /* Lógica ver */
+                  // 🔥 Llamamos al widget que hicimos en el archivo view_employee_sheet.dart
+                  showViewEmployeeDialog(context, emp);
                 },
               ),
 
@@ -196,17 +198,8 @@ class EmployeeDataSource extends DataTableSource {
                 icon: Icons.edit_outlined,
                 color: Colors.blue,
                 onTap: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled:
-                        true, // Permite que el panel tome su tamaño natural
-                    backgroundColor: Colors
-                        .transparent, // Necesario para que se vean los bordes redondeados
-                    builder: (context) {
-                      return Center(child: Text('hola'));
-                    },
-                  );
-                  // Ejemplo: context.push('/registro', extra: emp);
+                  // 🔥 Llamamos al widget que hicimos en el archivo edit_employee_sheet.dart
+                  showEditEmployeeSheet(context, emp);
                 },
               ),
 
